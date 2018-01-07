@@ -51,15 +51,15 @@ MYFIFO_INIT(blt_txfifo, 40, 16);
 //	 Adv Packet, Response Packet
 //////////////////////////////////////////////////////////////////////////////
 const u8	tbl_advData[] = {
-	 0x05, 0x09, 't', 'h', 'i', 'd',
-	 0x02, 0x01, 0x05, 							// BLE limited discoverable mode and BR/EDR not supported
-	 0x03, 0x19, 0x80, 0x01, 					// 384, Generic Remote Control, Generic category
-	 0x05, 0x02, 0x12, 0x18, 0x0F, 0x18,		// incomplete list of service class UUIDs (0x1812, 0x180F)
+	0x11, 0x09, 'W', 'o', 'o', 'd', 'y', '\'','s',' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd', 
+	0x02, 0x01, 0x05, 							// BLE limited discoverable mode and BR/EDR not supported
+	0x03, 0x19, 0xC1, 0x03, 					// 961, Keyboard, HID subtype
+	0x05, 0x02, 0x12, 0x18, 0x0F, 0x18,		// incomplete list of service class UUIDs (0x1812, 0x180F)
 };
 
 const u8	tbl_scanRsp [] = {
-		 0x08, 0x09, 't', 'R', 'e', 'm', 'o', 't', 'e',
-	};
+	0x11, 0x09, 'W', 'o', 'o', 'd', 'y', '\'','s',' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd', 
+};
 
 
 u32 interval_update_tick = 0;
@@ -84,6 +84,7 @@ const led_cfg_t led_cfg[] = {
 	    {250,	  250 ,   200,	  0x08,  },    //2Hz for 50 seconds
 };
 
+const u8 keyboard_modifier_bits = KEYBOARD_MODIFIER_BITS;
 
 u32		advertise_begin_tick;
 
@@ -184,7 +185,7 @@ static u16 vk_consumer_map[16] = {
 	void entry_ota_mode(void)
 	{
 		ota_is_working = 1;
-		device_led_setup(led_cfg[LED_SHINE_OTA]);
+		// device_led_setup(led_cfg[LED_SHINE_OTA]);
 		bls_ota_setTimeout(15 * 1000 * 1000); //set OTA timeout  15 seconds
 	}
 
@@ -223,7 +224,7 @@ static u16 vk_consumer_map[16] = {
 		gpio_set_output_en (GPIO_AMIC_BIAS, en);
 		gpio_write (GPIO_AMIC_BIAS, en);
 
-		device_led_setup(led_cfg[en ? LED_AUDIO_ON : LED_AUDIO_OFF]);
+		// device_led_setup(led_cfg[en ? LED_AUDIO_ON : LED_AUDIO_OFF]);
 
 
 		if(en){  //audio on
@@ -423,131 +424,40 @@ void deepback_post_proc(void)
 
 void key_change_proc(void)
 {
-
+	u8 i;
+	u8 key_buf_index = 2;
+	
 	latest_user_event_tick = clock_time();  //record latest key change time
 
 	if(key_voice_press){  //clear voice key press flg
 		key_voice_press = 0;
 	}
 
-
-	u8 key0 = kb_event.keycode[0];
-	//u8 key1 = kb_event.keycode[1];
-	u8 key_value;
-
 	key_not_released = 1;
-	if (kb_event.cnt == 2)   //two key press, do  not process
+	if (kb_event.cnt)  
 	{
-
-	}
-	else if(kb_event.cnt == 1)
-	{
-		if(key0 == KEY_MODE_SWITCH)
+		for(i=0; i<kb_event.cnt; i++)
 		{
-			user_key_mode = !user_key_mode;
-			device_led_setup(led_cfg[LED_SHINE_SLOW + user_key_mode]);
-		}
-#if (BLE_AUDIO_ENABLE)
-		else if (key0 == VOICE)
-		{
-			if(ui_mic_enable){  //if voice on, voice off
-				//adc_clk_powerdown();
-				ui_enable_mic (0);
-			}
-			else{ //if voice not on, mark voice key press tick
-				key_voice_press = 1;
-				key_voice_pressTick = clock_time();
-			}
-		}
-#endif
-
-#if (BLE_PHYTEST_MODE == PHYTEST_MODE_THROUGH_2_WIRE_UART)
-		else if (key0 == PHY_TEST)
-		{
-			static u8 phyTestFlag = 0;
-			if(!phyTestFlag && blc_ll_getCurrentState() != BLS_LINK_STATE_CONN){
-				phyTestFlag = 1;
-				device_led_setup(led_cfg[LED_SHINE_FAST]);
-				blc_phy_setPhyTestEnable( BLC_PHYTEST_ENABLE );
-			}
-		}
-#endif
-
-#if (REMOTE_IR_ENABLE)
-		else if(user_key_mode == KEY_MODE_BLE)
-		{
-			key_value = kb_map_ble[key0];
-			if(key_value >= 0xf0 ){
-				key_type = CONSUMER_KEY;
-				u16 consumer_key = vk_consumer_map[key_value & 0x0f];
-				bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_key, 2);
+			if(kb_event.keycode[i] > 0xf0 )
+			{
+				//modifier
+				key_buf[0] |= keyboard_modifier_bits[kb_event.keycode[i] & 0x0f];
 			}
 			else
 			{
-				key_type = KEYBOARD_KEY;
-				key_buf[2] = key_value;
-				bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8);
-			}
-
-		}
-		else if(user_key_mode == KEY_MODE_IR)
-		{  //IR mode
-			key_value = kb_map_ir[key0];
-			key_type = IR_KEY;
-			if(!ir_not_released){
-				ir_dispatch(TYPE_IR_SEND, 0x88, key_value);
-				ir_not_released = 1;
-			}
-		}
-		else
-		{
-			key_type = IDLE_KEY;
-		}
-#else
-		else
-		{
-			key_value = key0;
-			if(key_value >= 0xf0 ){
-				key_type = CONSUMER_KEY;
-				u16 consumer_key = vk_consumer_map[key_value & 0x0f];
-				bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_key, 2);
-			}
-			else
-			{
-				key_type = KEYBOARD_KEY;
-				key_buf[2] = key_value;
-				bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8);
+				//normal keys
+				key_buf[key_buf_index++] = kb_event.keycode[i];
 			}
 		}
 
-#endif
-
+		bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8);
 	}
 	else   //kb_event.cnt == 0,  key release
 	{
 		key_not_released = 0;
-		if(key_type == CONSUMER_KEY)
-		{
-			u16 consumer_key = 0;
-			bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_key, 2);
-		}
-		else if(key_type == KEYBOARD_KEY)
-		{
-			key_buf[2] = 0;
-			bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8); //release
-		}
-#if (REMOTE_IR_ENABLE)
-		else if(key_type == IR_KEY)
-		{
-			if(ir_not_released){
-				ir_not_released = 0;
-				ir_dispatch(TYPE_IR_RELEASE, 0, 0);  //release
-			}
-		}
-#endif
+		key_buf[2] = 0;
+		bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8); //release
 	}
-
-
 }
 
 
@@ -640,7 +550,7 @@ void blt_pm_proc(void)
 	{
 		bls_pm_setSuspendMask (SUSPEND_ADV | SUSPEND_CONN);
 
-		user_task_flg = ota_is_working || scan_pin_need || key_not_released || DEVICE_LED_BUSY;
+		user_task_flg = ota_is_working || scan_pin_need || key_not_released;
 
 		if(user_task_flg){
 			#if (LONG_PRESS_KEY_POWER_OPTIMIZE)
@@ -897,7 +807,7 @@ void user_init()
 
 
 	////////////////LED initialization /////////////////////////
-	device_led_init(GPIO_LED, 1);
+	//device_led_init(GPIO_LED, 1);
 
 #if (BLE_REMOTE_OTA_ENABLE)
 	////////////////// OTA relative ////////////////////////
@@ -986,7 +896,7 @@ void main_loop (void)
 
 	proc_keyboard (0,0, 0);
 
-	device_led_process();
+	// device_led_process();
 
 	blt_pm_proc();
 }
