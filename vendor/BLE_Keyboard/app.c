@@ -84,7 +84,7 @@ const led_cfg_t led_cfg[] = {
 	    {250,	  250 ,   200,	  0x08,  },    //2Hz for 50 seconds
 };
 
-const u8 keyboard_modifier_bits = KEYBOARD_MODIFIER_BITS;
+const u8 keyboard_modifier_bits[] = KEYBOARD_MODIFIER_BITS;
 
 u32		advertise_begin_tick;
 
@@ -391,12 +391,12 @@ void deepback_pre_proc(int *det_key)
 #if (DEEPBACK_FAST_KEYSCAN_ENABLE)
 	// to handle deepback key cache
 	if(!(*det_key) && deepback_key_state == DEEPBACK_KEY_CACHE && blc_ll_getCurrentState() == BLS_LINK_STATE_CONN \
-			&& clock_time_exceed(bls_ll_getConnectionCreateTime(), 25000)){
+			&& clock_time_exceed(bls_ll_getConnectionCreateTime(), 400000)){
 
 		memcpy(&kb_event,&kb_event_cache,sizeof(kb_event));
 		*det_key = 1;
 
-		if(key_not_released || kb_event_cache.keycode[0] == VOICE){  //no need manual release
+		if(key_not_released){  //no need manual release
 			deepback_key_state = DEEPBACK_KEY_IDLE;
 		}
 		else{  //need manual release
@@ -432,6 +432,8 @@ void key_change_proc(void)
 	if(key_voice_press){  //clear voice key press flg
 		key_voice_press = 0;
 	}
+
+	memset(key_buf, 0, 8);
 
 	key_not_released = 1;
 	if (kb_event.cnt)  
