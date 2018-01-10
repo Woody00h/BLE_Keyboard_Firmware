@@ -184,7 +184,7 @@ static u16 vk_consumer_map[16] = {
 	void entry_ota_mode(void)
 	{
 		ota_is_working = 1;
-		device_led_setup(led_cfg[LED_SHINE_OTA]);
+//		device_led_setup(led_cfg[LED_SHINE_OTA]);
 		bls_ota_setTimeout(15 * 1000 * 1000); //set OTA timeout  15 seconds
 	}
 
@@ -445,7 +445,7 @@ void key_change_proc(void)
 		if(key0 == KEY_MODE_SWITCH)
 		{
 			user_key_mode = !user_key_mode;
-			device_led_setup(led_cfg[LED_SHINE_SLOW + user_key_mode]);
+//			device_led_setup(led_cfg[LED_SHINE_SLOW + user_key_mode]);
 		}
 #if (BLE_AUDIO_ENABLE)
 		else if (key0 == VOICE)
@@ -640,7 +640,7 @@ void blt_pm_proc(void)
 	{
 		bls_pm_setSuspendMask (SUSPEND_ADV | SUSPEND_CONN);
 
-		user_task_flg = ota_is_working || scan_pin_need || key_not_released || DEVICE_LED_BUSY;
+		user_task_flg = ota_is_working || scan_pin_need || key_not_released /*|| DEVICE_LED_BUSY*/;
 
 		if(user_task_flg){
 			#if (LONG_PRESS_KEY_POWER_OPTIMIZE)
@@ -897,7 +897,7 @@ void user_init()
 
 
 	////////////////LED initialization /////////////////////////
-	device_led_init(GPIO_LED, 1);
+//	device_led_init(GPIO_LED, 1);
 
 #if (BLE_REMOTE_OTA_ENABLE)
 	////////////////// OTA relative ////////////////////////
@@ -986,7 +986,7 @@ void main_loop (void)
 
 	proc_keyboard (0,0, 0);
 
-	device_led_process();
+//	device_led_process();
 
 	blt_pm_proc();
 }

@@ -22,7 +22,7 @@ extern "C" {
 
 
 /////////////////// MODULE /////////////////////////////////
-#define BLE_REMOTE_PM_ENABLE			1
+#define BLE_REMOTE_PM_ENABLE			0
 #define BLE_REMOTE_SECURITY_ENABLE      1
 #define BLE_REMOTE_OTA_ENABLE			1
 #define REMOTE_IR_ENABLE				0
@@ -30,7 +30,7 @@ extern "C" {
 #define BLE_PHYTEST_MODE				PHYTEST_MODE_DISABLE
 
 #if (__PROJECT_8267_BLE_REMOTE__ || __PROJECT_8269_BLE_REMOTE__)
-	#define BLE_AUDIO_ENABLE				1
+	#define BLE_AUDIO_ENABLE				0
 #else   //8261/8266  not support audio
 	#define BLE_AUDIO_ENABLE				0
 #endif
@@ -188,69 +188,100 @@ extern "C" {
 							IR_PAUSE,	VK_NONE,	VK_NONE,	VK_NONE,	VK_NONE,	VK_NONE,	VK_NONE, }
 	#else   //key map
 
-			#define		KB_MAP_NORMAL	{\
-							VK_7,		VK_4,			VK_1,		VK_NONE,			CR_VOL_DN,	CR_VOL_UP,	CR_BACK	, \
-							VK_LEFT,	PHY_TEST,		VK_NONE,	VK_NONE,			CR_RECORD,	VK_NONE,	CR_POWER, \
-							VK_RIGHT,	CR_HOME,		VK_NONE,	CR_FAST_FORWARD,	CR_STOP,	CR_SEARCH,	KEY_MODE_SWITCH , \
-							VK_9,	 	VK_6,			VK_3,		VK_NONE,			CR_CHN_DN,	CR_CHN_UP,	CR_MENU , \
-							VK_NONE,	CR_VOL_MUTE,	VOICE,		VK_DOWN,			VK_ENTER,	VK_UP,		VK_NONE , \
-							VK_NONE,	VK_NONE,		VK_0,		VK_8,				VK_5,		VK_2,		VK_NONE , \
-							CR_PAUSE,	CR_PLAY,		VK_NONE,	VK_NONE,			VK_NONE,	VK_NONE,	VK_NONE, }
+		//modifier
+		#define VK_L_CTRL	0xF1
+		#define VK_L_SHIFT	0xF2
+		#define VK_L_ALT	0xF3
+		#define VK_L_WIN	0xF4
+		#define VK_R_CTRL	0xF5
+		#define VK_R_SHIFT	0xF6
+		#define VK_R_ALT	0xF7
+		#define VK_R_WIN	0xF8
+		#define KEYBOARD_MODIFIER_BITS	{0, 1, 2, 4, 8, 16, 32, 64, 128}
+
+		#define		KB_MAP_NORMAL	{\
+						{VK_ESC,		VK_F1,			VK_F2,		VK_F3,			VK_F4,			VK_F5,		VK_F6,			VK_F7,		VK_F8,		VK_F9},\
+						{VK_NUMBER,		VK_1,			VK_2,		VK_3,			VK_4,			VK_5,		VK_6,			VK_7,		VK_8,		VK_9},\
+						{VK_TAB,		VK_Q,			VK_W,		VK_E,			VK_R,			VK_T,		VK_Y, 			VK_U,		VK_I,		VK_O},\
+						{VK_CAPITAL,	VK_A,			VK_S,		VK_D,			VK_F,			VK_G,		VK_H, 			VK_J,		VK_K,		VK_L},\
+						{VK_L_SHIFT,	VK_Z,			VK_X,		VK_C,			VK_V,			VK_B,		VK_N,			VK_COMMA,	VK_M,		VK_PERIOD},\
+						{VK_L_CTRL,		VK_L_WIN,		VK_L_ALT,	VK_SPACE,		VK_R_ALT,		VK_R_WIN,	VK_FN,			VK_LEFT, 	VK_R_CTRL,	VK_DOWN},\
+						{VK_F10,		VK_F11,			VK_F12,		VK_PRINTSCREEN,	VK_SCR_LOCK,	VK_PAUSE,	VK_SLASH,		VK_ENTER,	VK_R_SHIFT,	VK_RIGHT},\
+						{VK_P,			VK_LBRACE,		VK_RBRACE,	VK_BACKSLASH,	VK_DELETE,		VK_END,		VK_PAGE_DOWN,	VK_UP,		VK_QUOTE,	VK_L},\
+						{VK_0,			VK_MINUS,		VK_EQUAL,	VK_BACKSPACE,	VK_INSERT,		VK_HOME,	VK_PAGE_UP,		VK_NONE,	VK_NONE,	VK_NONE},\
+		}
+
 
 	#endif  //end of REMOTE_IR_ENABLE
 
 
-	#define  KB_DRIVE_PINS  {GPIO_PA6, GPIO_PA7, GPIO_PB1, GPIO_PB4, GPIO_PB5, GPIO_PB6, GPIO_PB7}
-	#define  KB_SCAN_PINS   {GPIO_PD3, GPIO_PD4, GPIO_PD5, GPIO_PD6, GPIO_PD7, GPIO_PE0, GPIO_PE1}
+	//col
+	#define  KB_DRIVE_PINS  {GPIO_PB4, GPIO_PB5, GPIO_PB6, GPIO_PB7, GPIO_PC4, GPIO_PA2, GPIO_PA3, GPIO_PA0, GPIO_PA4, GPIO_PD7}
+	//row
+	#define  KB_SCAN_PINS   {GPIO_PC3, GPIO_PB3, GPIO_PB2, GPIO_PB1, GPIO_PA5, GPIO_PD6, GPIO_PD5, GPIO_PA1, GPIO_PC5}
 
-	#define	PA6_FUNC				AS_GPIO
-	#define	PA7_FUNC				AS_GPIO
-	#define	PB1_FUNC				AS_GPIO
 	#define	PB4_FUNC				AS_GPIO
 	#define	PB5_FUNC				AS_GPIO
 	#define	PB6_FUNC				AS_GPIO
 	#define	PB7_FUNC				AS_GPIO
+	#define	PC4_FUNC				AS_GPIO
+	#define	PA2_FUNC				AS_GPIO
+	#define	PA3_FUNC				AS_GPIO
+	#define	PA0_FUNC				AS_GPIO
+	#define	PA4_FUNC				AS_GPIO
+	#define	PD7_FUNC				AS_GPIO
 	//drive pin need 100K pulldown
-	#define	PULL_WAKEUP_SRC_PA6		MATRIX_ROW_PULL
-	#define	PULL_WAKEUP_SRC_PA7		MATRIX_ROW_PULL
-	#define	PULL_WAKEUP_SRC_PB1		MATRIX_ROW_PULL
 	#define	PULL_WAKEUP_SRC_PB4		MATRIX_ROW_PULL
 	#define	PULL_WAKEUP_SRC_PB5		MATRIX_ROW_PULL
 	#define	PULL_WAKEUP_SRC_PB6		MATRIX_ROW_PULL
 	#define	PULL_WAKEUP_SRC_PB7		MATRIX_ROW_PULL
+	#define	PULL_WAKEUP_SRC_PC4		MATRIX_ROW_PULL
+	#define	PULL_WAKEUP_SRC_PA2		MATRIX_ROW_PULL
+	#define	PULL_WAKEUP_SRC_PA3		MATRIX_ROW_PULL
+	#define	PULL_WAKEUP_SRC_PA0		MATRIX_ROW_PULL
+	#define	PULL_WAKEUP_SRC_PA4		MATRIX_ROW_PULL
+	#define	PULL_WAKEUP_SRC_PD7		MATRIX_ROW_PULL
 	//drive pin open input to read gpio wakeup level
-	#define PA6_INPUT_ENABLE		1
-	#define PA7_INPUT_ENABLE		1
-	#define PB1_INPUT_ENABLE		1
 	#define PB4_INPUT_ENABLE		1
 	#define PB5_INPUT_ENABLE		1
 	#define PB6_INPUT_ENABLE		1
 	#define PB7_INPUT_ENABLE		1
-
-
-	#define	PD3_FUNC				AS_GPIO
-	#define	PD4_FUNC				AS_GPIO
-	#define	PD5_FUNC				AS_GPIO
-	#define	PD6_FUNC				AS_GPIO
-	#define	PD7_FUNC				AS_GPIO
-	#define	PE0_FUNC				AS_GPIO
-	#define	PE1_FUNC				AS_GPIO
-	//scan  pin need 10K pullup
-	#define	PULL_WAKEUP_SRC_PD3		MATRIX_COL_PULL
-	#define	PULL_WAKEUP_SRC_PD4		MATRIX_COL_PULL
-	#define	PULL_WAKEUP_SRC_PD5		MATRIX_COL_PULL
-	#define	PULL_WAKEUP_SRC_PD6		MATRIX_COL_PULL
-	#define	PULL_WAKEUP_SRC_PD7		MATRIX_COL_PULL
-	#define	PULL_WAKEUP_SRC_PE0		MATRIX_COL_PULL
-	#define	PULL_WAKEUP_SRC_PE1		MATRIX_COL_PULL
-	//scan pin open input to read gpio level
-	#define PD3_INPUT_ENABLE		1
-	#define PD4_INPUT_ENABLE		1
-	#define PD5_INPUT_ENABLE		1
-	#define PD6_INPUT_ENABLE		1
+	#define PC4_INPUT_ENABLE		1
+	#define PA2_INPUT_ENABLE		1
+	#define PA3_INPUT_ENABLE		1
+	#define PA0_INPUT_ENABLE		1
+	#define PA4_INPUT_ENABLE		1
 	#define PD7_INPUT_ENABLE		1
-	#define PE0_INPUT_ENABLE		1
-	#define PE1_INPUT_ENABLE		1
+
+	#define	PC3_FUNC				AS_GPIO
+	#define	PB3_FUNC				AS_GPIO
+	#define	PB2_FUNC				AS_GPIO
+	#define	PB1_FUNC				AS_GPIO
+	#define	PA5_FUNC				AS_GPIO
+	#define	PD6_FUNC				AS_GPIO
+	#define	PD5_FUNC				AS_GPIO
+	#define	PA1_FUNC				AS_GPIO
+	#define	PC5_FUNC				AS_GPIO
+	//scan  pin need 10K pullup
+	#define	PULL_WAKEUP_SRC_PC3		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PB3		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PB2		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PB1		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PA5		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PD6		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PD5		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PA1		MATRIX_COL_PULL
+	#define	PULL_WAKEUP_SRC_PC5		MATRIX_COL_PULL
+	//scan pin open input to read gpio level
+	#define PC3_INPUT_ENABLE		1
+	#define PB3_INPUT_ENABLE		1
+	#define PB2_INPUT_ENABLE		1
+	#define PB1_INPUT_ENABLE		1
+	#define PA5_INPUT_ENABLE		1
+	#define PD6_INPUT_ENABLE		1
+	#define PD5_INPUT_ENABLE		1
+	#define PA1_INPUT_ENABLE		1
+	#define PC5_INPUT_ENABLE		1
 
 
 #else  //8266 hardware: C43T53A5_V1.0

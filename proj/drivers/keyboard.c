@@ -44,7 +44,7 @@ u32 deepback_key_tick;
 #endif
 
 #ifndef		KB_HAS_CTRL_KEYS
-#define		KB_HAS_CTRL_KEYS		1
+#define		KB_HAS_CTRL_KEYS		0
 #endif
 
 #ifndef		KB_RM_GHOST_KEY_EN
@@ -52,7 +52,7 @@ u32 deepback_key_tick;
 #endif
 
 #ifndef		KB_HAS_FN_KEY
-#define		KB_HAS_FN_KEY		1
+#define		KB_HAS_FN_KEY		0
 #endif
 
 #ifndef		KB_DRV_DELAY_TIME
