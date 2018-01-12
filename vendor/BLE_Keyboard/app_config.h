@@ -94,7 +94,7 @@ extern "C" {
 
 #define		KB_MAP_NORMAL	{\
 				{VK_ESC,		VK_F1,			VK_F2,		VK_F3,			VK_F4,			VK_F5,		VK_F6,			VK_F7,		VK_F8,		VK_F9},\
-				{VK_NUMBER,		VK_1,			VK_2,		VK_3,			VK_4,			VK_5,		VK_6,			VK_7,		VK_8,		VK_9},\
+				{VK_TILDE,		VK_1,			VK_2,		VK_3,			VK_4,			VK_5,		VK_6,			VK_7,		VK_8,		VK_9},\
 				{VK_TAB,		VK_Q,			VK_W,		VK_E,			VK_R,			VK_T,		VK_Y, 			VK_U,		VK_I,		VK_O},\
 				{VK_CAPITAL,	VK_A,			VK_S,		VK_D,			VK_F,			VK_G,		VK_H, 			VK_J,		VK_K,		VK_L},\
 				{VK_L_SHIFT,	VK_Z,			VK_X,		VK_C,			VK_V,			VK_B,		VK_N,			VK_M,		VK_COMMA,	VK_PERIOD},\
