@@ -347,7 +347,7 @@ void 	ble_remote_terminate(u8 e,u8 *p, int n) //*p is terminate reason
 
 void	task_connect (u8 e, u8 *p, int n)
 {
-	bls_l2cap_requestConnParamUpdate (8, 8, 99, 400);  //interval=10ms latency=99 timeout=4s
+	bls_l2cap_requestConnParamUpdate (8, 8, 49, 120);  //interval=10ms latency=49 timeout=1.2s
 
 	latest_user_event_tick = clock_time();
 

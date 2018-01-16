@@ -40,7 +40,7 @@ const u16 my_gapServiceUUID = SERVICE_UUID_GENERIC_ACCESS;
 const u16 my_appearanceUIID = 0x2a01;
 const u16 my_periConnParamUUID = 0x2a04;
 u16 my_appearance = GAP_APPEARE_UNKNOWN;
-gap_periConnectParams_t my_periConnParameters = {20, 40, 0, 1000};
+gap_periConnectParams_t my_periConnParameters = {8, 8, 49, 120};
 
 
 const u16 my_gattServiceUUID = SERVICE_UUID_GENERIC_ATTRIBUTE;
@@ -70,7 +70,7 @@ const u8 PROP_READ_WRITE_NORSP_NOTIFY = CHAR_PROP_READ | CHAR_PROP_WRITE_WITHOUT
 
 
 
-const u8	my_devName[] = {'t','R','e','m','o','t','e'};
+const u8	my_devName[] = "Woody's Keyboard";
 
 
 

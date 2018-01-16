@@ -49,7 +49,7 @@ int user_manual_paring;
 
 
 
-const u8 	telink_adv_trigger_paring[] = {5, 0xFF, 0x11, 0x02, 0x01, 0x00};
+const u8 	telink_adv_trigger_paring[] = {0x11, 0x09, 'W', 'o', 'o', 'd', 'y'};
 const u8 	telink_adv_trigger_unpair[] = {5, 0xFF, 0x11, 0x02, 0x01, 0x01};
 
 
@@ -247,7 +247,8 @@ int app_l2cap_handler (u16 conn_handle, u8 *raw_pkt)
 			{
 				static u32 app_key;
 				app_key++;
-				att_keyboard (conn_handle, pAtt->dat);
+				usbkb_hid_report_normal(pAtt->dat[0], &(pAtt->dat[2]));
+				//att_keyboard (conn_handle, pAtt->dat);
 
 			}
 			else if(attHandle == AUDIO_HANDLE_MIC)
