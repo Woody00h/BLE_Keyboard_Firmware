@@ -108,6 +108,7 @@ u8 		key_type;
 u8 		user_key_mode;
 
 u8 		key_buf[8] = {0};
+u16		consumer_code;
 
 int 	key_not_released;
 
@@ -438,27 +439,109 @@ void key_change_proc(void)
 	key_not_released = 1;
 	if (kb_event.cnt)  
 	{
-		for(i=0; i<kb_event.cnt; i++)
+		/* Combo keys(Fn + X)
+		 * F5 	PLAY/PAUSE
+		 * F6 	STOP
+		 * F7 	REWIND
+		 * F8 	FAST FORWARD
+		 * F9 	AUDIO PLAYER
+		 * F10 	MUTE
+		 * F11 	VOL DOWN
+		 * F12 	VOL UP
+		 */
+		if(kb_event.cnt == 2 && \
+		  (kb_event.keycode[0] == VK_FN || kb_event.keycode[1] == VK_FN))
 		{
-			if(kb_event.keycode[i] > 0xf0 )
+			switch ( kb_event.keycode[0] + kb_event.keycode[1])
 			{
-				//modifier
-				key_buf[0] |= keyboard_modifier_bits[kb_event.keycode[i] & 0x0f];
+				case (VK_FN + VK_F5):
+						consumer_code = 0xcd;
+						break;
+
+				case (VK_FN + VK_F6):
+						consumer_code = 0xb7;
+						break;
+
+				case (VK_FN + VK_F7):
+						consumer_code = 0xb4;
+						break;
+
+				case (VK_FN + VK_F8):
+						consumer_code = 0xb3;
+						break;
+
+				case (VK_FN + VK_F9):
+						consumer_code = 0x1c7;
+						break;
+
+				case (VK_FN + VK_F10):
+						consumer_code = 0xe2;
+						break;
+
+				case (VK_FN + VK_F11):
+						consumer_code = 0xea;
+						break;
+
+				case (VK_FN + VK_F12):
+						consumer_code = 0xe9;
+						break;
+
+				default:
+						consumer_code = 0;
+					break;
 			}
-			else
+
+			if(consumer_code)
 			{
-				//normal keys
-				key_buf[key_buf_index++] = kb_event.keycode[i];
+				key_type = CONSUMER_KEY;
+				bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_code, 2);
 			}
 		}
+		else //not combo keys
+		{
+			if(key_type == CONSUMER_KEY) //combo keys just triggered
+			{
+				consumer_code = 0;
+				bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_code, 2);
+			}
+			else //normal keys
+			{
+				for(i=0; i<kb_event.cnt; i++)
+				{
+					if(kb_event.keycode[i] > 0xf0 )
+					{
+						//modifier
+						key_buf[0] |= keyboard_modifier_bits[kb_event.keycode[i] & 0x0f];
+					}
+					else
+					{
+						//normal keys
+						key_buf[key_buf_index++] = kb_event.keycode[i];
+					}
+				}
 
-		bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8);
+				bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8);
+			}
+
+			key_type = KEYBOARD_KEY;
+		}
 	}
 	else   //kb_event.cnt == 0,  key release
 	{
 		key_not_released = 0;
-		key_buf[2] = 0;
-		bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8); //release
+
+		if(key_type == CONSUMER_KEY)
+		{
+			consumer_code = 0;
+			bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_code, 2);
+		}
+		else
+		{
+			key_buf[2] = 0;
+			bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8); //release
+		}
+
+		key_type = IDLE_KEY;
 	}
 }
 
