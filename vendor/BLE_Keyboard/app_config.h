@@ -72,7 +72,7 @@ extern "C" {
 #define LONG_PRESS_KEY_POWER_OPTIMIZE	1   //lower power when pressing key without release
 
 //stuck key
-#define STUCK_KEY_PROCESS_ENABLE		0
+#define STUCK_KEY_PROCESS_ENABLE		1
 #define STUCK_KEY_ENTERDEEP_TIME		60  //in s
 
 //repeat key

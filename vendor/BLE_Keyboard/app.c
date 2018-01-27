@@ -17,6 +17,7 @@
 #include "../../proj/drivers/uart.h"
 
 #include "rc_ir.h"
+#include "app.h"
 
 #if (__PROJECT_BLE_KEYBOARD__)
 
@@ -61,28 +62,11 @@ const u8	tbl_scanRsp [] = {
 	0x11, 0x09, 'W', 'o', 'o', 'd', 'y', '\'','s',' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd', 
 };
 
-
+u8  tbl_mac [] = {0xe1, 0xe1, 0xe2, 0xe3, 0xe4, 0xc7};
+static const u32 pin[] = KB_DRIVE_PINS;
 u32 interval_update_tick = 0;
 int device_in_connection_state;
 
-/////////////////////////// led management /////////////////////
-enum{
-	LED_POWER_ON = 0,
-	LED_AUDIO_ON,	//1
-	LED_AUDIO_OFF,	//2
-	LED_SHINE_SLOW, //3
-	LED_SHINE_FAST, //4
-	LED_SHINE_OTA, //5
-};
-
-const led_cfg_t led_cfg[] = {
-	    {1000,    0,      1,      0x00,	 },    //power-on, 1s on
-	    {100,	  0 ,	  0xff,	  0x02,  },    //audio on, long on
-	    {0,	      100 ,   0xff,	  0x02,  },    //audio off, long off
-	    {500,	  500 ,   2,	  0x04,	 },    //1Hz for 3 seconds
-	    {250,	  250 ,   4,	  0x04,  },    //2Hz for 3 seconds
-	    {250,	  250 ,   200,	  0x08,  },    //2Hz for 50 seconds
-};
 
 const u8 keyboard_modifier_bits[] = KEYBOARD_MODIFIER_BITS;
 
@@ -104,7 +88,6 @@ int     ui_mtu_size_exchange_req = 0;
 #define KEYBOARD_KEY   	   		2
 #define IR_KEY   	   			3
 
-u8 		key_type;
 u8 		user_key_mode;
 
 u8 		key_buf[8] = {0};
@@ -121,28 +104,38 @@ u8 		sendTerminate_before_enterDeep = 0;
 u8 		ota_is_working = 0;
 
 
+static STATE_MACHINE Active_State_Machine;
+static u8 stuck_flag;
+static u32 universal_start_tick;
+static u32 active_start_tick;
+static u32 pair_press_start_tick;
+static u32 reset_press_start_tick;
+static u32 key_stuck_start_tick;
+static u32 blink_start_tick;
 
-static u16 vk_consumer_map[16] = {
-		MKEY_VOL_UP,
-		MKEY_VOL_DN,
-		MKEY_MUTE,
-		MKEY_CHN_UP,
+static int my_det_key;
+static u8 my_key_p1;
+static u8 my_key_p2;
+static u8 my_key_cnt;
+static KEY_TYPE key_type;
+static u8 pair_key_press;
+static u8 reset_key_press;
+static u8 pair_info;
+static u8 emc_test_detect;
+static u8 enter_deep_sleep;
+static u8 force_pairing_enable;
+static u8 reset_enable;
+static u8 fast_blink_cnt;
+static u16 consumer_buf = 1;
+static u8 low_battery_blink_cnt;
+static u8 reset_confirm;
+static u8 blt_pair_start;
 
-		MKEY_CHN_DN,
-		MKEY_POWER,
-		MKEY_AC_SEARCH,
-		MKEY_RECORD,
+extern u8 my_batVal[];
 
-		MKEY_PLAY,
-		MKEY_PAUSE,
-		MKEY_STOP,
-		MKEY_FAST_FORWARD,  //can not find fast_backword in <<HID Usage Tables>>
-
-		MKEY_FAST_FORWARD,
-		MKEY_AC_HOME,
-		MKEY_AC_BACK,
-		MKEY_MENU,
-};
+#if (STUCK_KEY_PROCESS_ENABLE)
+	u32 	stuckKey_keyPressTime;
+#endif
 
 
 
@@ -392,7 +385,7 @@ void deepback_pre_proc(int *det_key)
 #if (DEEPBACK_FAST_KEYSCAN_ENABLE)
 	// to handle deepback key cache
 	if(!(*det_key) && deepback_key_state == DEEPBACK_KEY_CACHE && blc_ll_getCurrentState() == BLS_LINK_STATE_CONN \
-			&& clock_time_exceed(bls_ll_getConnectionCreateTime(), 400000)){
+			&& clock_time_exceed(bls_ll_getConnectionCreateTime(), 50000)){
 
 		memcpy(&kb_event,&kb_event_cache,sizeof(kb_event));
 		*det_key = 1;
@@ -415,8 +408,8 @@ void deepback_post_proc(void)
 	if(deepback_key_state == DEEPBACK_KEY_WAIT_RELEASE && clock_time_exceed(deepback_key_tick,150000)){
 		key_not_released = 0;
 
-		key_buf[2] = 0;
-		bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8); //release
+		send_release_code();
+
 		deepback_key_state = DEEPBACK_KEY_IDLE;
 	}
 #endif
@@ -571,40 +564,24 @@ void proc_keyboard (u8 e, u8 *p, int n)
 		return;
 	}
 
-
-
-
-	kb_event.keycode[0] = 0;
-	int det_key = kb_scan_key (0, 1);
-
-
+	memset(key_buf, 0, 8);
+	memset(&kb_event, 0, sizeof(kb_data_t));
+	if(!ui_mic_enable)
+	{
+		my_det_key = kb_scan_key (0, 1);
+	}
 #if(DEEPBACK_FAST_KEYSCAN_ENABLE)
-	if(deepback_key_state != DEEPBACK_KEY_IDLE){
-		deepback_pre_proc(&det_key);
+	if(deepback_key_state != DEEPBACK_KEY_IDLE)
+	{
+		deepback_pre_proc(&my_det_key);
 	}
 #endif
 
+	my_key_cnt = kb_event.cnt;
+	my_key_p1 = kb_event.keycode[0];
+	my_key_p2 = kb_event.keycode[1];
 
-	if (det_key){
-		key_change_proc();
-	}
-	
-
-#if (BLE_AUDIO_ENABLE)
-	 //long press voice 1 second
-		if(key_voice_press && !ui_mic_enable && blc_ll_getCurrentState() == BLS_LINK_STATE_CONN && \
-			clock_time_exceed(key_voice_pressTick,1000000)){
-
-			voice_press_proc();
-		}
-#endif
-
-
-#if(DEEPBACK_FAST_KEYSCAN_ENABLE)
-	if(deepback_key_state != DEEPBACK_KEY_IDLE){
-		deepback_post_proc();
-	}
-#endif
+	Handle_Active_Mode();
 }
 
 
@@ -640,7 +617,7 @@ void blt_pm_proc(void)
 		if(user_task_flg){
 			#if (LONG_PRESS_KEY_POWER_OPTIMIZE)
 				extern int key_matrix_same_as_last_cnt;
-				if(!ota_is_working && key_matrix_same_as_last_cnt > 5){  //key matrix stable can optize
+				if(!ota_is_working && key_matrix_same_as_last_cnt > 5 && !low_battery_blink_cnt){  //key matrix stable can optize
 					bls_pm_setManualLatency(3);
 				}
 				else{
@@ -653,40 +630,46 @@ void blt_pm_proc(void)
 
 
 	#if 1 //deepsleep
-		if(sendTerminate_before_enterDeep == 1){ //sending Terminate and wait for ack before enter deepsleep
-			if(user_task_flg){  //detect key Press again,  can not enter deep now
+		if(sendTerminate_before_enterDeep == 1) //sending Terminate and wait for ack before enter deepsleep
+		{
+			if(user_task_flg && !stuck_flag)  //detect key Press again,  can not enter deep now
+			{
 				sendTerminate_before_enterDeep = 0;
 				bls_ll_setAdvEnable(1);   //enable adv again
+				enter_deep_sleep = 0;
+				Start_New_Mode(SM_ADV);
 			}
 		}
-		else if(sendTerminate_before_enterDeep == 2){  //Terminate OK
-			analog_write(DEEP_ANA_REG0, CONN_DEEP_FLG);
+		else if(sendTerminate_before_enterDeep == 2)  //Terminate OK
+		{
+			if(pair_info)
+				analog_write(DEEP_ANA_REG0,CONN_DEEP_FLG);
+			else
+				analog_write(DEEP_ANA_REG0,ADV_DEEP_FLG);
 
-			#if (REMOTE_IR_ENABLE)
-				analog_write(DEEP_ANA_REG1, user_key_mode);
-			#endif
 			cpu_sleep_wakeup(DEEPSLEEP_MODE, PM_WAKEUP_PAD, 0);  //deepsleep
 		}
 
-		//adv 60s, deepsleep
-		if( blc_ll_getCurrentState() == BLS_LINK_STATE_ADV && !sendTerminate_before_enterDeep && \
-			clock_time_exceed(advertise_begin_tick , ADV_IDLE_ENTER_DEEP_TIME * 1000000))
+		if(enter_deep_sleep) //need to sleep now
 		{
+			if(!user_task_flg || stuck_flag)
+			{
+				if(blc_ll_getCurrentState() == BLS_LINK_STATE_CONN)
+				{
+					bls_ll_terminateConnection(HCI_ERR_REMOTE_USER_TERM_CONN); //push terminate cmd into ble TX buffer
+					sendTerminate_before_enterDeep = 1;
+				}
+				else if(blc_ll_getCurrentState() == BLS_LINK_STATE_ADV)
+				{
+					if(pair_info)
+						analog_write(DEEP_ANA_REG0,CONN_DEEP_FLG);
+					else
+						analog_write(DEEP_ANA_REG0,ADV_DEEP_FLG);
 
-			#if (REMOTE_IR_ENABLE)
-				analog_write(DEEP_ANA_REG1, user_key_mode);
-			#endif
-			cpu_sleep_wakeup(DEEPSLEEP_MODE, PM_WAKEUP_PAD, 0);  //deepsleep
-		}
-		//conn 60s no event(key/voice/led), enter deepsleep
-		else if( device_in_connection_state && !user_task_flg && \
-				clock_time_exceed(latest_user_event_tick, CONN_IDLE_ENTER_DEEP_TIME * 1000000) )
-		{
-
-			bls_ll_terminateConnection(HCI_ERR_REMOTE_USER_TERM_CONN); //push terminate cmd into ble TX buffer
-			bls_ll_setAdvEnable(0);   //disable adv
-			sendTerminate_before_enterDeep = 1;
-		}
+					cpu_sleep_wakeup(DEEPSLEEP_MODE, PM_WAKEUP_PAD, 0);  //deepsleep
+				}
+			}
+		}//end if(enter_deep_sleep)
 	#endif
 
 	}
@@ -713,7 +696,6 @@ void user_init()
 
 
 ////////////////// BLE stack initialization ////////////////////////////////////
-	u8  tbl_mac [] = {0xe1, 0xe1, 0xe2, 0xe3, 0xe4, 0xc7};
 	u32 *pmac = (u32 *) CFG_ADR_MAC;
 	if (*pmac != 0xffffffff)
 	{
@@ -773,17 +755,22 @@ void user_init()
 	if(bond_number)   //set direct adv
 	{
 		//set direct adv
+		ll_whiteList_add(bondInfo.peer_addr_type, bondInfo.peer_addr);
+
 		u8 status = bls_ll_setAdvParam( MY_ADV_INTERVAL_MIN, MY_ADV_INTERVAL_MAX,
 										ADV_TYPE_CONNECTABLE_DIRECTED_LOW_DUTY, OWN_ADDRESS_PUBLIC,
 										bondInfo.peer_addr_type,  bondInfo.peer_addr,
 										MY_APP_ADV_CHANNEL,
-										ADV_FP_NONE);
+										ADV_FP_ALLOW_SCAN_ANY_ALLOW_CONN_WL);
 		if(status != BLE_SUCCESS) { write_reg8(0x8000, 0x11); 	while(1); }  //debug: adv setting err
 
 		//it is recommended that direct adv only last for several seconds, then switch to indirect adv
+#if 0
 		bls_ll_setAdvDuration(MY_DIRECT_ADV_TMIE, 1);
 		bls_app_registerEventCallback (BLT_EV_FLAG_ADV_DURATION_TIMEOUT, &app_switch_to_indirect_adv);
+#endif
 
+		pair_info = 1;
 	}
 	else   //set indirect adv
 #endif
@@ -794,6 +781,8 @@ void user_init()
 										 MY_APP_ADV_CHANNEL,
 										 ADV_FP_NONE);
 		if(status != BLE_SUCCESS) { write_reg8(0x8000, 0x11); 	while(1); }  //debug: adv setting err
+
+		pair_info = 0;
 	}
 
 	bls_ll_setAdvEnable(1);  //adv enable
@@ -805,7 +794,6 @@ void user_init()
 
 
 	///////////////////// keyboard matrix initialization///////////////////
-	u32 pin[] = KB_DRIVE_PINS;
 	for (int i=0; i<(sizeof (pin)/sizeof(*pin)); i++)
 	{
 		gpio_set_wakeup(pin[i],1,1);  	   //drive pin core(gpio) high wakeup suspend
@@ -945,6 +933,680 @@ void user_init()
 
 	advertise_begin_tick = clock_time();
 
+}
+
+void Start_Init_Mode()
+{
+	universal_start_tick = clock_time();
+	force_pairing_enable = 1;
+	reset_enable = 1;
+	//LED_ON;
+}
+
+void Handle_Init_Mode()
+{
+	//if(clock_time_exceed(universal_start_tick,THREE_SECOND))
+	{
+		LED_OFF;
+
+		if(emc_test_detect)
+		{
+			Start_New_Mode(SM_EMC);
+			return;
+		}
+
+		//If the pairing table is empty RC will enter pairing mode when 'pressing any key'
+		//If the pairing table is not empty RC will enter pairing mode by pressing combo keys.
+		if(!pair_info) //no pair info
+		{
+			if(analog_read(DEEP_ANA_REG0)) //key press wakeup
+			{
+				Start_New_Mode(SM_PAIR);
+			}
+			else //power on
+			{
+				enter_deep_sleep = 1;
+			}
+		}
+		else
+		{
+			Start_New_Mode(SM_ADV);
+		}
+	}
+}
+
+
+void Start_Control_Mode()
+{
+	active_start_tick = clock_time();
+}
+
+void Handle_Control_Mode()
+{
+	u8 i;
+	u8 key_buf_index = 2;
+
+	/******************************************************************************************
+	*******connection down handle**************************************************************
+	******************************************************************************************/
+	if(!bls_ll_isConnectState())
+	{
+#if BLE_AUDIO_ENABLE
+		if(ui_mic_enable)
+		{
+			audio2battery();
+			ui_enable_mic(0);
+		}
+#endif
+		LED_OFF;
+		enter_deep_sleep = 1;
+		return;
+	}
+
+	/******************************************************************************************
+	*******Handle the keyboard*****************************************************************
+	******************************************************************************************/
+	if(my_det_key)
+	{
+		/* Combo keys(Fn + X)
+		 * F5 	PLAY/PAUSE
+		 * F6 	STOP
+		 * F7 	REWIND
+		 * F8 	FAST FORWARD
+		 * F9 	AUDIO PLAYER
+		 * F10 	MUTE
+		 * F11 	VOL DOWN
+		 * F12 	VOL UP
+		 */
+		if(my_key_cnt == 2 && \
+		  (my_key_p1 == VK_FN || my_key_p2 == VK_FN))
+		{
+			switch ( my_key_p1 + my_key_p2)
+			{
+				case (VK_FN + VK_F5):
+						consumer_code = 0xcd;
+						break;
+
+				case (VK_FN + VK_F6):
+						consumer_code = 0xb7;
+						break;
+
+				case (VK_FN + VK_F7):
+						consumer_code = 0xb4;
+						break;
+
+				case (VK_FN + VK_F8):
+						consumer_code = 0xb3;
+						break;
+
+				case (VK_FN + VK_F9):
+						consumer_code = 0x1c7;
+						break;
+
+				case (VK_FN + VK_F10):
+						consumer_code = 0xe2;
+						break;
+
+				case (VK_FN + VK_F11):
+						consumer_code = 0xea;
+						break;
+
+				case (VK_FN + VK_F12):
+						consumer_code = 0xe9;
+						break;
+
+				default:
+						consumer_code = 0;
+					break;
+			}
+
+			if(consumer_code)
+			{
+				key_type = CONSUMER_KEY;
+				bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_code, 2);
+			}
+		}
+		else //not combo keys
+		{
+			if(my_key_cnt)
+			{
+				if(key_type == KEY_TYPE_CONSUMER) //combo keys just triggered
+				{
+					consumer_code = 0;
+					bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_code, 2);
+				}
+				else //normal keys
+				{
+					for(i=0; i<my_key_cnt; i++)
+					{
+						if(kb_event.keycode[i] > 0xf0 )
+						{
+							//modifier
+							key_buf[0] |= keyboard_modifier_bits[kb_event.keycode[i] & 0x0f];
+						}
+						else
+						{
+							//normal keys
+							key_buf[key_buf_index++] = kb_event.keycode[i];
+						}
+					}
+
+					bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8);
+				}
+				key_type = KEY_TYPE_KEYBOARD;
+			}
+			else
+			{
+				send_release_code();
+			}
+		}
+	}
+
+	/*****************************************************************************************
+	*********low power handle*****************************************************************
+	*****************************************************************************************/
+	if(key_not_released)
+	{
+		active_start_tick = clock_time();
+	}
+
+	//no operation for more than 60s, sleep
+	{
+		if(clock_time_exceed(active_start_tick , ONE_MINUTE))
+		{
+			enter_deep_sleep = 1;
+			return;
+		}
+	}
+}
+
+
+void Start_Pair_Mode()
+{
+	blt_pair_start = 1;
+
+	bls_ll_setAdvDuration (0, 0);  //duration disable
+	bls_ll_setAdvParam( ADV_INTERVAL_30MS, ADV_INTERVAL_30MS, \
+						ADV_TYPE_CONNECTABLE_UNDIRECTED, OWN_ADDRESS_PUBLIC, \
+						0,  NULL,  BLT_ENABLE_ADV_ALL, ADV_FP_NONE);
+	blt_state = BLS_LINK_STATE_ADV;
+	rf_set_power_level_index (RF_POWER_m10dBm);			//power : -10dbm
+	blink_start_tick = universal_start_tick = clock_time();	//record the start time
+	fast_blink_cnt = 0;
+}
+
+void Handle_Pair_Mode()
+{
+
+	if(bls_ll_isConnectState()) //connected
+	{
+		bls_pm_setManualLatency(0);  //set the latency to 0, so that LED could blink fast
+
+		//LED fast blink 2 times if pairing success
+		if(fast_blink_cnt < 5)
+		{
+			if(clock_time_exceed(blink_start_tick , QUARTER_SECOND))
+			{
+				fast_blink_cnt++;
+				LED_TOGGLE;
+				blink_start_tick = clock_time();
+			}
+		}
+		else
+		{
+			LED_OFF;
+			bls_ll_setAdvData((u8 *)tbl_advData, sizeof(tbl_advData));
+			blt_pair_start = 0;
+			pair_info = 1;
+			Start_New_Mode(SM_CONTROL);
+		}
+	}
+	else
+	{
+		// send pair adv packet for more than 30S, sleep
+		if(clock_time_exceed(universal_start_tick , HALF_MIN))
+		{
+			LED_OFF;
+			blt_pair_start = 0;
+			enter_deep_sleep = 1;
+			return;
+		}
+
+		//LED Blink when wait pairing
+#if 0
+		if(clock_time_exceed(blink_start_tick , BLINK_TIME))
+		{
+			blink_start_tick = clock_time();
+			LED_TOGGLE;
+		}
+#else
+		LED_ON;
+#endif
+	}
+}
+
+
+void Start_Adv_Mode()
+{
+	universal_start_tick = clock_time();
+}
+
+void Handle_Adv_Mode()
+{
+	//send adv packet for more than 1min, sleep
+	if(clock_time_exceed(universal_start_tick , ONE_MINUTE))
+	{
+		enter_deep_sleep = 1;
+	}
+
+	if(bls_ll_isConnectState()) //connected
+	{
+		Start_New_Mode(SM_CONTROL);
+	}
+}
+
+
+void Start_Reset_Mode()
+{
+	universal_start_tick = blink_start_tick = clock_time();
+	reset_confirm = 0;
+	send_release_code();
+}
+
+void Handle_Reset_Mode()
+{
+	if(!clock_time_exceed(universal_start_tick , THREE_SECOND))
+	{
+		if(!reset_confirm)
+		{
+			flash_erase_sector(BLT_PAIR_SECURITY_ADDR);			//erase bond info
+			reset_confirm = 1;
+		}
+	}
+	else
+	{
+		LED_OFF;
+
+		if(key_not_released)
+		{
+
+		}
+		else
+		{
+			enter_deep_sleep = 1;
+		}
+	}
+}
+
+#if 0
+u8 emi_chn_sel;
+u8 emi_mode_sel;
+const EMC_KEY emc_config[] = {
+		{VK_1,		RF_CHANNEL_2402,	RF_CARRY},
+		{VK_2,		RF_CHANNEL_2402,	RF_CARRY_DATA},
+		{VK_3,		RF_CHANNEL_2402,	RF_RX},
+		{VK_4,		RF_CHANNEL_2442,	RF_CARRY},
+		{VK_5,		RF_CHANNEL_2442,	RF_CARRY_DATA},
+		{VK_6,		RF_CHANNEL_2442,	RF_RX},
+		{VK_7,		RF_CHANNEL_2480,	RF_CARRY},
+		{VK_8,		RF_CHANNEL_2480,	RF_CARRY_DATA},
+		{VK_9,		RF_CHANNEL_2480,	RF_RX},
+};
+#define EMC_KEY_CNT		(sizeof(emc_config)/sizeof(emc_config[0]))
+u8 emi_proc_keyboard (u8 e, u8 *p)
+{
+	u8 cmd = 0;
+	u8 i;
+	memset(&kb_event, 0, sizeof(kb_data_t));
+
+	int det_key = kb_scan_key (0, 1);
+
+	if (det_key){
+
+		u8 key = kb_event.keycode[0];
+
+		for(i=0;i<EMC_KEY_CNT;i++)
+		{
+			if(key == emc_config[i].key_index)
+			{
+				emi_chn_sel  = emc_config[i].emc_channel;
+				emi_mode_sel = emc_config[i].emc_mode;
+				cmd = 0x80;
+				break;
+			}
+		}
+	}
+	return cmd;
+}
+
+
+void emi_test_proc()
+{
+	u8 cmd = 0;
+	static u8 emi_flg_init;
+
+	cmd = emi_proc_keyboard(0, 0);
+	if(!emi_flg_init){
+		emi_flg_init = 1;
+		cmd |= emi_flg_init;
+
+		sleep_us(2000);
+	}
+
+	emi_process(cmd, emi_chn_sel, emi_mode_sel, tbl_mac, RF_POWER_8dBm);
+}
+
+void Start_EMC_Mode()
+{
+	universal_start_tick = clock_time();
+	LED_OFF;
+	fast_blink_cnt = 6;
+}
+
+void Handle_EMC_Mode()
+{
+	while(1)
+	{
+		//handle the LED
+		if(fast_blink_cnt > 0)
+		{
+			//when enter factory mode, LED blink twice
+			if(clock_time_exceed(universal_start_tick , QUARTER_SECOND))
+			{
+				universal_start_tick = clock_time();
+				fast_blink_cnt--;
+				LED_TOGGLE;
+			}
+		}
+		else
+		{
+			LED_OFF;
+		}
+
+		emi_test_proc();
+
+#if (MODULE_WATCHDOG_ENABLE)
+		wd_clear(); //clear watch dog
+#endif
+	}
+}
+#endif
+
+void Start_New_Mode(STATE_MACHINE new_mode)
+{
+	Active_State_Machine = new_mode;
+
+	switch (Active_State_Machine)
+	{
+	case SM_INIT:
+		Start_Init_Mode();
+		break;
+/*
+
+	case SM_FACTORY:
+		Start_Factory_Mode();
+		break;
+*/
+
+	case SM_PAIR:
+		Start_Pair_Mode();
+		break;
+
+	case SM_CONTROL:
+		Start_Control_Mode();
+		break;
+/*
+
+	case SM_SLEEP:
+		Start_Sleep_Mode();
+		break;
+*/
+
+	case SM_ADV:
+		Start_Adv_Mode();
+		break;
+
+	case SM_RESET:
+		Start_Reset_Mode();
+		break;
+/*
+
+	case SM_OTA:
+		Start_OTA_Mode();
+		break;
+
+
+	case SM_EMC:
+		Start_EMC_Mode();
+		break;
+*/
+	default:
+		break;
+
+
+	}
+}
+
+void Handle_Active_Mode(void)
+{
+/*
+
+	if(ota_is_working && Active_State_Machine != SM_OTA)
+	{
+		Start_New_Mode(SM_OTA);
+	}
+*/
+
+/*
+ *
+ * Press <MUTE> + <V+> for 3s, force pair
+ * press <V-> + <V+> then <HOME>, clear pair info
+ *
+ */
+	if(my_det_key)
+	{
+		if(my_key_cnt)
+		{
+			key_not_released = 1;
+			//if other keys pressed before the cached key restore,
+			//put new keys into the cache
+			if(deepback_key_state == DEEPBACK_KEY_CACHE)
+			{
+				memcpy(&kb_event_cache,&kb_event,sizeof(kb_event));
+			}
+		}
+		else
+		{
+			key_not_released = 0;
+			//prevent re-entering pair mode if user hold the force pairing keys and not release.
+			//if key released this flag will be set.
+			force_pairing_enable = 1;
+			reset_enable = 1;
+		}
+
+		if(my_key_cnt==2)
+		{
+			//press Fn & P to force pair
+			if( (VK_FN == my_key_p1 && VK_P == my_key_p2 ) || \
+				(VK_P == my_key_p1 && VK_FN == my_key_p2))
+			{
+				pair_key_press = 1;
+				pair_press_start_tick = clock_time();
+			}
+			else
+			{
+				pair_key_press = 0;
+			}
+
+			//press Fn & C  to reset
+			if( (VK_FN == my_key_p1 && VK_C == my_key_p2 ) || \
+				(VK_C == my_key_p1 && VK_FN == my_key_p2))
+			{
+				reset_key_press = 1;
+				reset_press_start_tick = clock_time();
+			}
+			else
+			{
+				reset_key_press = 0;
+			}
+		}
+		else
+		{
+			pair_key_press = 0;
+			reset_key_press = 0;
+		}
+
+	}
+
+	if(reset_key_press && \
+		clock_time_exceed(reset_press_start_tick , THREE_SECOND) && \
+		Active_State_Machine != SM_RESET &&\
+		reset_enable)
+	{
+		//TODO reset factory
+#if BLE_AUDIO_ENABLE
+		if(ui_mic_enable)
+		{
+			ui_enable_mic(0);
+		}
+#endif
+		Start_New_Mode(SM_RESET);
+		reset_enable = 0;
+	}
+
+	if(pair_key_press && \
+		clock_time_exceed(pair_press_start_tick , THREE_SECOND) && \
+		Active_State_Machine != SM_PAIR &&\
+		force_pairing_enable)
+	{
+#if BLE_AUDIO_ENABLE
+		if(ui_mic_enable)
+		{
+			ui_enable_mic(0);
+		}
+#endif
+		Start_New_Mode(SM_PAIR);
+
+		//prevent re-entering pair mode if user hold the force pairing keys and not release.
+		//if key released this flag will be set.
+		force_pairing_enable = 0;
+	}
+
+/*
+ *
+ * if key pressed for more than 30S, enter sleep
+ *
+ */
+#if(STUCK_KEY_PROCESS_ENABLE)
+	//if the key still pressed and time exceed 30s, sleep
+	if(!key_not_released)
+	{
+		key_stuck_start_tick = clock_time();
+	}
+
+	if(key_not_released && clock_time_exceed(key_stuck_start_tick, STUCK_KEY_SLEEP_TIME) && !my_det_key)
+	{
+		//key release wakeup
+		{
+			send_release_code();
+
+			for(int i=0; i<sizeof(pin) / sizeof(*pin); i++)
+			{
+				extern u8 stuckKeyPress[];
+				if(stuckKeyPress[i])
+				{
+					cpu_set_gpio_wakeup(pin[i], 0, 1);			//low level wakeup deepsleep
+				}
+				else
+				{
+					cpu_set_gpio_wakeup(pin[i], 0, 0);
+				}
+			}
+#if BLE_AUDIO_ENABLE
+			if(ui_mic_enable)
+			{
+				ui_enable_mic(0);
+			}
+#endif
+		}
+
+		//enter sleep
+		stuck_flag = 1;
+		LED_OFF;
+		enter_deep_sleep = 1;
+	}
+#endif
+
+	switch (Active_State_Machine)
+	{
+	case SM_INIT:
+		Handle_Init_Mode();
+		break;
+/*
+
+	case SM_FACTORY:
+		Handle_Factory_Mode();
+		break;
+*/
+
+	case SM_PAIR:
+		Handle_Pair_Mode();
+		break;
+
+	case SM_CONTROL:
+		Handle_Control_Mode();
+		break;
+/*
+
+	case SM_SLEEP:
+		Handle_Sleep_Mode();
+		break;
+*/
+
+	case SM_ADV:
+		Handle_Adv_Mode();
+		break;
+
+	case SM_RESET:
+		Handle_Reset_Mode();
+		break;
+
+/*
+	case SM_OTA:
+		Handle_OTA_Mode();
+		break;
+
+
+	case SM_EMC:
+		Handle_EMC_Mode();
+		break;
+*/
+	default:
+		break;
+	}
+
+#if(DEEPBACK_FAST_KEYSCAN_ENABLE)
+	if(deepback_key_state != DEEPBACK_KEY_IDLE)
+	{
+		deepback_post_proc();
+	}
+#endif
+}
+
+
+void send_release_code(void)
+{
+	//send release code
+	if(key_type == KEY_TYPE_CONSUMER)
+	{
+		consumer_buf = 0;
+		bls_att_pushNotifyData(HID_NORMAL_KB_REPORT_INPUT_DP_H, (u8 *)&consumer_buf , 2);  //release
+	}
+	else if(key_type == KEY_TYPE_KEYBOARD)
+	{
+		key_buf[2] = 0;
+		bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, key_buf, 8); //release
+	}
 }
 
 /////////////////////////////////////////////////////////////////////

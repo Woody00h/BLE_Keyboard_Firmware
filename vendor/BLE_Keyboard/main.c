@@ -8,6 +8,7 @@
 #include "../../proj_lib/ble/ll/ll.h"
 #include "../../proj_lib/ble/ble_phy.h"
 
+#include "app.h"
 
 #if (REMOTE_IR_ENABLE)
 #include "rc_ir.h"
@@ -100,6 +101,8 @@ int main (void) {
 	user_init ();
 
     irq_enable();
+
+    Start_New_Mode(SM_INIT);
 
 	while (1) {
 #if (MODULE_WATCHDOG_ENABLE)
