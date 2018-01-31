@@ -117,7 +117,7 @@ static int my_det_key;
 static u8 my_key_p1;
 static u8 my_key_p2;
 static u8 my_key_cnt;
-static KEY_TYPE key_type;
+static KEY_TYPE key_type = KEY_TYPE_KEYBOARD;
 static u8 pair_key_press;
 static u8 reset_key_press;
 static u8 pair_info;
@@ -341,7 +341,7 @@ void 	ble_remote_terminate(u8 e,u8 *p, int n) //*p is terminate reason
 
 void	task_connect (u8 e, u8 *p, int n)
 {
-	bls_l2cap_requestConnParamUpdate (8, 8, 49, 120);  //interval=10ms latency=49 timeout=1.2s
+	bls_l2cap_requestConnParamUpdate (8, 8, 99, 200);  //interval=10ms latency=99 timeout=2s
 
 	latest_user_event_tick = clock_time();
 
@@ -350,6 +350,11 @@ void	task_connect (u8 e, u8 *p, int n)
 	device_in_connection_state = 1;//
 
 	interval_update_tick = clock_time() | 1; //none zero
+
+	if(blt_pair_start)
+	{
+		rf_set_power_level_index (RF_POWER_8dBm);			//power : 8dbm
+	}
 }
 
 
@@ -385,7 +390,7 @@ void deepback_pre_proc(int *det_key)
 #if (DEEPBACK_FAST_KEYSCAN_ENABLE)
 	// to handle deepback key cache
 	if(!(*det_key) && deepback_key_state == DEEPBACK_KEY_CACHE && blc_ll_getCurrentState() == BLS_LINK_STATE_CONN \
-			&& clock_time_exceed(bls_ll_getConnectionCreateTime(), 50000)){
+			&& clock_time_exceed(bls_ll_getConnectionCreateTime(), 400000)){
 
 		memcpy(&kb_event,&kb_event_cache,sizeof(kb_event));
 		*det_key = 1;
@@ -1114,7 +1119,7 @@ void Handle_Control_Mode()
 	{
 		if(clock_time_exceed(active_start_tick , ONE_MINUTE))
 		{
-			enter_deep_sleep = 1;
+			//enter_deep_sleep = 1;
 			return;
 		}
 	}
@@ -1600,12 +1605,12 @@ void send_release_code(void)
 	if(key_type == KEY_TYPE_CONSUMER)
 	{
 		consumer_buf = 0;
-		bls_att_pushNotifyData(HID_NORMAL_KB_REPORT_INPUT_DP_H, (u8 *)&consumer_buf , 2);  //release
+		bls_att_pushNotifyData(HID_CONSUME_REPORT_INPUT_DP_H, (u8 *)&consumer_buf , 2);  //release
 	}
 	else if(key_type == KEY_TYPE_KEYBOARD)
 	{
 		key_buf[2] = 0;
-		bls_att_pushNotifyData (HID_CONSUME_REPORT_INPUT_DP_H, key_buf, 8); //release
+		bls_att_pushNotifyData (HID_NORMAL_KB_REPORT_INPUT_DP_H, key_buf, 8); //release
 	}
 }
 
