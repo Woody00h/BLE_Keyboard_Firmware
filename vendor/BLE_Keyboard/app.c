@@ -180,7 +180,7 @@ extern u8 my_batVal[];
 	{
 		ota_is_working = 1;
 		// device_led_setup(led_cfg[LED_SHINE_OTA]);
-		bls_ota_setTimeout(15 * 1000 * 1000); //set OTA timeout  15 seconds
+		bls_ota_setTimeout(60 * 1000 * 1000); //set OTA timeout  60 seconds
 	}
 
 
