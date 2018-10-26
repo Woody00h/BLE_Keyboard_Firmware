@@ -52,10 +52,11 @@ MYFIFO_INIT(blt_txfifo, 40, 16);
 //	 Adv Packet, Response Packet
 //////////////////////////////////////////////////////////////////////////////
 const u8	tbl_advData[] = {
-	0x11, 0x09, 'W', 'o', 'o', 'd', 'y', '\'','s',' ', 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd', 
+	0x0b, 0x08, 'W', 'o', 'o', 'd', 'y', '\'','s',' ', 'K', 'B',
 	0x02, 0x01, 0x05, 							// BLE limited discoverable mode and BR/EDR not supported
 	0x03, 0x19, 0xC1, 0x03, 					// 961, Keyboard, HID subtype
 	0x05, 0x02, 0x12, 0x18, 0x0F, 0x18,		// incomplete list of service class UUIDs (0x1812, 0x180F)
+	0x03, 0xff, 0x7a, 0x05,
 };
 
 const u8	tbl_scanRsp [] = {
